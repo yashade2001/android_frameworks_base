@@ -23,7 +23,10 @@ import android.animation.TimeInterpolator;
 import android.animation.ValueAnimator;
 import android.app.ActivityManagerNative;
 import android.app.StatusBarManager;
+import android.content.ActivityNotFoundException;
 import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.database.ContentObserver;
@@ -32,6 +35,8 @@ import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.os.Handler;
 import android.os.Message;
+import android.os.PowerManager;
+import android.provider.Settings;
 import android.os.UserHandle;
 import android.os.RemoteException;
 import android.util.AttributeSet;
@@ -43,6 +48,7 @@ import android.view.Surface;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.view.GestureDetector;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -107,6 +113,13 @@ public class NavigationBarView extends LinearLayout {
     private boolean mDelegateIntercepted;
 
     private SettingsObserver mSettingsObserver;
+
+    private GestureDetector mDoubleTapGestureSleep;
+    private GestureDetector mLongPressGestureSleep;
+    private GestureDetector mFlingGestureSleep;
+    private GestureDetector mDoubleTapGestureStartApp;
+    private GestureDetector mLongPressGestureStartApp;
+    private GestureDetector mFlingGestureStartApp;
 
     private class NavTransitionListener implements TransitionListener {
         private boolean mBackTransitioning;
@@ -202,7 +215,85 @@ public class NavigationBarView extends LinearLayout {
         mBarTransitions = new NavigationBarTransitions(this);
 
         mSettingsObserver = new SettingsObserver(new Handler());
+
+////////////////////////////////////////////////////////////////////////////////////////
+
+        mDoubleTapGestureSleep = new GestureDetector(mContext,
+                new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public boolean onDoubleTap(MotionEvent e) {
+                PowerManager pm = (PowerManager) mContext.getSystemService(Context.POWER_SERVICE);
+                if (pm != null) pm.goToSleep(e.getEventTime());
+                return true;
+            }
+        });
+
+        mLongPressGestureSleep = new GestureDetector(mContext,
+                new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public void onLongPress(MotionEvent e) {
+                PowerManager pm = (PowerManager) mContext.getSystemService(Context.POWER_SERVICE);
+                if (pm != null) pm.goToSleep(e.getEventTime());
+            }
+        });
+
+        mFlingGestureSleep = new GestureDetector(mContext,
+                new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+                PowerManager pm = (PowerManager) mContext.getSystemService(Context.POWER_SERVICE);
+                if (pm != null) pm.goToSleep(e2.getEventTime());
+                return true;
+            }
+        });
+
+        mDoubleTapGestureStartApp = new GestureDetector(mContext,
+                new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public boolean onDoubleTap(MotionEvent e) {
+                if (selectedPackageSystemSetting != null) startApp(mContext, selectedPackageSystemSetting);
+                return true;
+            }
+        });
+
+        mLongPressGestureStartApp = new GestureDetector(mContext,
+                new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public void onLongPress(MotionEvent e) {
+                if (selectedPackageSystemSetting != null) startApp(mContext, selectedPackageSystemSetting);
+            }
+        });
+
+        mFlingGestureStartApp = new GestureDetector(mContext,
+                new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+                if (selectedPackageSystemSetting != null) startApp(mContext, selectedPackageSystemSetting);
+                return true;
+            }
+        });
+
+////////////////////////////////////////////////////////////////////////////////////////
+
     }
+
+    public static boolean startApp(Context context, String packageName) {
+        PackageManager packageManager = context.getPackageManager();
+        try {
+            Intent intent = packageManager.getLaunchIntentForPackage(packageName);
+            if (intent == null) return false;
+            intent.addCategory(Intent.CATEGORY_LAUNCHER);
+            context.startActivity(intent);
+            return true;
+        } catch (ActivityNotFoundException e) {
+            Log.e(TAG, "Package name not found");
+            return false;
+        }
+    }
+
+    public String selectedPackageSystemSetting =
+			Settings.System.getString(mContext.getContentResolver(),
+                        Settings.System.NAVBAR_START_APP_PKG_NAME);
 
     @Override
     protected void onAttachedToWindow() {
@@ -247,6 +338,44 @@ public class NavigationBarView extends LinearLayout {
             boolean ret = mDelegateHelper.onInterceptTouchEvent(event);
             if (ret) return true;
         }
+
+/////////////////////////////////////////////////////////////////////////
+
+        int navBarDoubleTapAction = Settings.System.getInt(mContext.getContentResolver(),
+                                    Settings.System.NAVBAR_DOUBLE_TAP_ACTION, 0);
+        int navBarLongPressAction = Settings.System.getInt(mContext.getContentResolver(),
+                                    Settings.System.NAVBAR_LONG_PRESS_ACTION, 0);
+        int navBarFlingAction = Settings.System.getInt(mContext.getContentResolver(),
+                                Settings.System.NAVBAR_FLING_ACTION, 0);
+
+	switch (navBarDoubleTapAction) {
+	  case 1:
+		 mDoubleTapGestureSleep.onTouchEvent(event);
+		 break;
+	  case 2:
+		 mDoubleTapGestureStartApp.onTouchEvent(event);
+		 break;
+	}
+
+	switch (navBarLongPressAction) {
+	  case 1:
+		 mLongPressGestureSleep.onTouchEvent(event);
+		 break;
+	  case 2:
+		 mLongPressGestureStartApp.onTouchEvent(event);
+		 break;
+	}
+
+	switch (navBarFlingAction) {
+	  case 1:
+		 mFlingGestureSleep.onTouchEvent(event);
+		 break;
+	  case 2:
+		 mFlingGestureStartApp.onTouchEvent(event);
+		 break;
+	}
+
+/////////////////////////////////////////////////////////////////////////
 
         return super.onTouchEvent(event);
     }

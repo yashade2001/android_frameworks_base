@@ -2747,6 +2747,34 @@ public final class Settings {
          */
         public static final String PIE_GRAVITY = "pie_gravity";
 
+       /**
+        * Navigation bar double tap action
+        *
+        * @hide
+        */
+        public static final String NAVBAR_DOUBLE_TAP_ACTION = "navbar_double_tap_action";
+
+       /**
+        * Navigation bar long press action
+        *
+        * @hide
+        */
+        public static final String NAVBAR_LONG_PRESS_ACTION = "navbar_long_press_action";
+
+       /**
+        * Navigation bar fling (swipe) action
+        *
+        * @hide
+        */
+        public static final String NAVBAR_FLING_ACTION = "navbar_fling_action";
+
+       /**
+        * Package to launch (needed for navbar gestures feature)
+        *
+        * @hide
+        */
+        public static final String NAVBAR_START_APP_PKG_NAME = "navbar_start_app_pkg_name";
+
         /**
          * Settings to backup. This is here so that it's in the same place as the settings
          * keys and easy to update.
